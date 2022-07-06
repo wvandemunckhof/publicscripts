@@ -479,7 +479,8 @@ Function Start-Script() {
     $inputFile = ".\Devices-Input.csv"
     if (Test-Path $inputFile)
     {
-        $confirmation = Read-Host "Inputfile found: $($inputFile.Fullname). Is this the correct file?"
+        $fileFound = Get-ItemPropertyValue -Path $inputFile -Name FullName
+        $confirmation = Read-Host "Inputfile found: $($fileFound). Is this the correct file?"
         if ($confirmation -eq 'y') {
             Invoke-Cleanup -CsvFile $inputFile
         } else {
