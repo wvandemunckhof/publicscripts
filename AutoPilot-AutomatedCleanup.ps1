@@ -1,7 +1,26 @@
+# BROKEN
 # https://www.powershellgallery.com/packages/WindowsAutoPilotIntune
 # https://github.com/microsoft/Intune-PowerShell-SDK
 # base script taken from https://oliverkieselbach.com/2020/01/21/cleanup-windows-autopilot-registrations/ and https://github.com/okieselbach/Intune/blob/master/Start-AutopilotCleanupCSV.ps1
 # thanks to Oliver Kieselbach
+# BROKEN
+# Module Microsoft.Graph.Intune is deprecated and does not work in Powershell 7+
+# Instead, convert this script to use Microsoft Graph PowerShell SDK
+# https://github.com/microsoftgraph/msgraph-sdk-powershell
+# hint: modules Microsoft.Graph.Authentication, .Devicemanagement and Devicemanagement.Enrolment are good places to start.
+
+
+
+# tip: https://developer.microsoft.com/en-us/graph/graph-explorer
+
+
+
+
+
+
+
+
+# BROKEN
 ####################################################
 
 #region Initialization code
