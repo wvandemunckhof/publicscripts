@@ -6,6 +6,7 @@
 
 #region Initialization code
 
+<#
 $m = Get-Module -Name Microsoft.Graph.Intune -ListAvailable
 if (-not $m)
 {
@@ -13,7 +14,7 @@ if (-not $m)
     Install-Module Microsoft.Graph.Intune
 }
 Import-Module Microsoft.Graph.Intune -Global
-
+#>
 #endregion
 
 ####################################################
@@ -67,7 +68,7 @@ Function Get-AutoPilotDevice(){
             $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
         }
         try {
-            $response = Invoke-MSGraphRequest -Url $uri -HttpMethod Get
+            $response = Invoke-GraphRequest -Uri $uri -Method Get
             if ($id) {
                 $response
             }
@@ -76,7 +77,7 @@ Function Get-AutoPilotDevice(){
                 $devicesNextLink = $response."@odata.nextLink"
     
                 while ($devicesNextLink -ne $null){
-                    $devicesResponse = (Invoke-MSGraphRequest -Url $devicesNextLink -HttpMethod Get)
+                    $devicesResponse = (Invoke-GraphRequest -Uri $devicesNextLink -Method Get)
                     $devicesNextLink = $devicesResponse."@odata.nextLink"
                     $devices += $devicesResponse.value
                 }
@@ -123,7 +124,7 @@ Function Invoke-AutopilotSync(){
     
         $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
         try {
-            Invoke-MSGraphRequest -Url $uri -HttpMethod Post
+            Invoke-GraphRequest -Uri $uri -Method Post
         }
         catch { 
             if ($_.Exception -contains "Too Many Requests")
@@ -213,7 +214,8 @@ Function Start-AutopilotCleanupCSV(){
     $serialNumbers = Import-Csv $CsvFile | Select-Object -Unique 'Device Serial Number' | Select-Object -ExpandProperty 'Device Serial Number'
 
     # collect all known devices from Intune
-    $intuneManagedDevices = Get-IntuneManagedDevice | Get-MSGraphAllPages 
+    #$intuneManagedDevices = Get-IntuneManagedDevice | Get-MSGraphAllPages 
+    $intuneManagedDevices = Get-MgDeviceManagementManagedDevice -All
     
     # collect all known Autopilot devices from Intune
     $allAutopilotDevices = Get-AutoPilotDevice
@@ -249,9 +251,9 @@ Function Start-AutopilotCleanupCSV(){
                     else{
                         try{
                             # delete the Autopilot devices as batch job
-                            $result = Invoke-MSGraphRequest -Url "$graphUrl/`$batch" `
-                                                            -HttpMethod POST `
-                                                            -Content "$jsonContent"
+                            $result = Invoke-GraphRequest -Uri "$graphUrl/`$batch" `
+                                                            -Method POST `
+                                                            -Body "$jsonContent"
                             
                             # generate some deletion job request results (status=200 equals successfully transmitted, not successfully deleted!)
                             # collect results instead of writing to output at this step, increasing throughput.
@@ -300,7 +302,7 @@ Function Start-AutopilotCleanupCSV(){
 
                             if ($deviceIntune)
                             {
-                                try { Remove-DeviceManagement_ManagedDevices -managedDeviceId $deviceIntune.id
+                                try { Remove-MgDeviceManagementManagedDevice -managedDeviceId $deviceIntune.id
                                 }
                                 catch {
                                    Write-Error $_.Exception
@@ -387,8 +389,10 @@ Function Match-SerialNumbers(){
                 $matchedDevices += [PSCustomObject]@{
                     'Device Serial Number' = $matchedSerialNumber.serialNumber
                 }
-             } else {
-                 $nonMatchedDevices += $localSerialNumber
+             }  else {
+                 $nonMatchedDevices += [PSCustomObject]@{
+                    'Device Serial Number' = $localSerialNumber.serialNumber
+                }
             }
         }
         
@@ -398,7 +402,7 @@ Function Match-SerialNumbers(){
         # if matches found, show message and export to new local file.
         if ($matchedDevices.Count) {
             Write-Output "`nDevices matched with Intune: $($matchedDevices.Count). `nExporting to .\Devices-Matched.csv..."
-            $matchedDevices | Export-CSV ".\Devices-Matched.csv" -NoTypeInformation
+            $matchedDevices | Export-CSV -UseQuotes AsNeeded  ".\Devices-Matched.csv" -NoTypeInformation
         } else {
             Write-Warning "`nNo devices matched with Intune, nothing to remove."
             break
@@ -406,7 +410,7 @@ Function Match-SerialNumbers(){
         # if notmatches found, show message and export to new local file.
         if ($nonMatchedDevices.Count) {
             Write-Output "`nDevices not matched with Intune: $($nonMatchedDevices.Count). `nExporting to .\Devices-NotMatched.csv..."
-            $nonMatchedDevices | Export-CSV ".\Devices-NotMatched.csv" -NoTypeInformation
+            $nonMatchedDevices | Export-CSV -UseQuotes AsNeeded ".\Devices-NotMatched.csv" -NoTypeInformation
         } else {
             Write-Output "`nAll devices matched with Intune."
         }
@@ -422,7 +426,9 @@ Function Invoke-Cleanup() {
     )
     
     # Connect to MS Graph.
-    Connect-MSGraph | Out-Null
+    # Using the right permissions.
+    # Connect-MSGraph | Out-Null
+    Connect-MgGraph -Scopes "DeviceManagementManagedDevices.ReadWrite.All", "DeviceManagementServiceConfig.ReadWrite.All" | Out-Null
     
     # Match serial numbers first.
     Write-Output "Matching devices from file to Intune..."
@@ -457,7 +463,7 @@ Function Invoke-Cleanup() {
     }
     if ($devicesRemaining.Count) {
         Write-Output "`nRemaining devices: $($devicesRemaining.Count) of $($serialNumbers.Count).`nExporting to .\Devices-Failed.csv..."
-        $devicesRemaining | Export-CSV ".\Devices-Failed.csv" -NoTypeInformation
+        $devicesRemaining | Export-CSV -UseQuotes AsNeeded ".\Devices-Failed.csv" -NoTypeInformation
     } else {
         Write-Output "`nAll devices have been removed."
     }
